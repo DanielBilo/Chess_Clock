@@ -1,6 +1,6 @@
 {
     "board": "arduino:avr:nano",
     "port": "COM8",
-    "sketch": ".vscode\\main.ino",
+    "sketch": ".vscode\\CHESS_CLOCK.ino",
     "configuration": "cpu=atmega168"
 }
