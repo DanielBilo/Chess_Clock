@@ -1,0 +1,6 @@
+{
+    "board": "arduino:avr:nano",
+    "port": "COM8",
+    "sketch": ".vscode\\main.ino",
+    "configuration": "cpu=atmega168"
+}
