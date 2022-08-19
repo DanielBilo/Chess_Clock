@@ -6,6 +6,7 @@
 #else
 #include <WProgram.h>
 #endif
+#include <max7219.h>
 
 
 extern volatile bool lastRotaryCLKState;
@@ -15,5 +16,6 @@ extern int rotaryBPin;           //Active low
 extern bool intFlag;
 
 void rotaryUpdate(void);
+void diplayClock(unsigned int timeLeft, unsigned int timeRight);
 
 #endif
