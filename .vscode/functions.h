@@ -14,8 +14,11 @@ extern int encoderPosCount;
 extern int rotaryCLKPin;         
 extern int rotaryBPin;           //Active low
 extern bool intFlag;
+extern MAX7219 max7219;
 
 void rotaryUpdate(void);
-void diplayClock(unsigned int timeLeft, unsigned int timeRight);
+void diplayClock(unsigned long timeLeft, unsigned long timeRight);
+bool debounce(int btn, uint16_t *state);
+
 
 #endif

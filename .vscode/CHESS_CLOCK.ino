@@ -7,17 +7,23 @@ int rotaryCLKPin = 2;
 int rotaryBPin = 5;           //Active low
 int rotaryButtonPin = 6;
 
-char displayBrightness = 1;
+char displayBrightness = 3;
 
 volatile bool lastRotaryCLKState = 0;
 bool previousRotaryButton = 0;
-bool previousLeftButtonPin = 0;
-bool previousRightButtonPin = 0;
-bool currentLeftButtonPin = 0;
-bool currentRightButtonPin = 0;
+bool previousLeftButton = 0;
+bool previousRightButton = 0;
+bool currentLeftButton = 0;
+bool currentRightButton = 0;
 bool currentRotaryButton = 0;
 int encoderPosCount = 0;
 bool intFlag = 0;
+bool resetFlag = 0;
+bool pauseInput = 0;
+int resetCounter = 0;
+uint16_t debounceStateRotaryButton = 0;
+uint16_t debounceStateLeftButton = 0;
+uint16_t debounceStateRightButton = 0;
 unsigned long currentMillis, previousMillis, playerLeftTime, playerRightTime, playerLeftInc, playerRightInc, playerLeftTimeInit, playerRightTimeInit;
 
 
@@ -44,12 +50,14 @@ void setup() {
   previousRotaryButton = digitalRead(rotaryButtonPin);
   currentMillis = millis();
   previousMillis = currentMillis;
-  previousLeftButtonPin = digitalRead(leftButtonPin);
-  previousRightButtonPin = digitalRead(rightButtonPin);
-  playerLeftTimeInit = 10 * 60 * 1000; //10 minutes temps de départ
-  playerRightTimeInit = 10 * 60 * 1000; //10 minutes temps de départ
-  playerLeftInc = 10 * 1000; //10 sec incrément
-  playerRightInc = 10 * 1000; //10 sec incrément
+  previousLeftButton = digitalRead(leftButtonPin);
+  previousRightButton = digitalRead(rightButtonPin);
+  playerLeftTimeInit = 50 * 60000;              // temps de départ
+  playerRightTimeInit = 50 * 60000;             // temps de départ
+  playerLeftTime = playerLeftTimeInit;
+  playerRightTime = playerRightTimeInit;
+  playerLeftInc = 10000;                    //incrément initial
+  playerRightInc = 10000;                   //incrément initial
 
   
   
@@ -63,9 +71,15 @@ void loop() {
     intFlag = 0;
   }  
 
-  currentRotaryButton = digitalRead(rotaryButtonPin);
-  currentLeftButtonPin = digitalRead(leftButtonPin);
-  currentRightButtonPin = digitalRead(rightButtonPin);
+  currentRotaryButton = debounce(rotaryButtonPin, &debounceStateRotaryButton);
+  // currentRotaryButton = digitalRead(rotaryButtonPin);
+
+  currentLeftButton = debounce(leftButtonPin, &debounceStateLeftButton);
+  currentRightButton = debounce(rightButtonPin, &debounceStateRightButton);
+  if(currentRotaryButton)
+  {
+    Serial.println("Rotary high");
+  }
   currentMillis = millis();
 
   switch(state)
@@ -76,10 +90,10 @@ void loop() {
         encoderPosCount = 0;
         intFlag = 0;
       }
-      if(previousLeftButtonPin != currentLeftButtonPin)
+      if(previousLeftButton != currentLeftButton)
       {
-        previousLeftButtonPin = currentLeftButtonPin;
-        if(currentLeftButtonPin)
+        previousLeftButton = currentLeftButton;
+        if(currentLeftButton)
         {
           previousMillis = currentMillis;
           state = Cnt1;
@@ -87,10 +101,10 @@ void loop() {
           playerRightTime = playerRightTimeInit;
         }
       }
-      if(previousRightButtonPin != currentRightButtonPin)
+      if(previousRightButton != currentRightButton)
       {
-        previousRightButtonPin = currentRightButtonPin;
-        if(currentRightButtonPin)
+        previousRightButton = currentRightButton;
+        if(currentRightButton)
         {
           previousMillis = currentMillis;
           playerLeftTime = playerLeftTimeInit;
@@ -98,19 +112,20 @@ void loop() {
           state = Cnt2;
         }
       }
+      diplayClock(playerLeftTime, playerRightTime);
       break;
 
     case Cnt1:
       //Décrémentation du temps
-      playerLeftTime -= (currentMillis - previousMillis);
+      playerLeftTime = playerLeftTime -  (currentMillis - previousMillis);
       previousMillis = currentMillis;
       //détection de fin de tour
-      if(previousRightButtonPin != currentRightButtonPin)
-      previousRightButtonPin = currentRightButtonPin;
+      if(previousRightButton != currentRightButton)
+      previousRightButton = currentRightButton;
       {
-        if(currentRightButtonPin)
+        if(currentRightButton)
         {
-          playerLeftTime += playerLeftInc;
+          playerLeftTime = playerLeftTime +  playerLeftInc;
           state = Cnt2;
         }
       }
@@ -123,26 +138,26 @@ void loop() {
       if(currentRotaryButton != previousRotaryButton)
       {
         previousRotaryButton = currentRotaryButton;
-        if(currentRotaryButton)
+        if(!currentRotaryButton)
         {
           previousState = Cnt1;
           state = Pause;
         }
       }
-
+      diplayClock(playerLeftTime, playerRightTime);
       break;
 
     case Cnt2:
       //Décrémentation du temps
-      playerRightTime -= (currentMillis - previousMillis);
+      playerRightTime = playerRightTime - (currentMillis - previousMillis);
       previousMillis = currentMillis;
       //détection de fin de tour
-      if(previousLeftButtonPin != currentLeftButtonPin)
+      if(previousLeftButton != currentLeftButton)
       {
-        previousLeftButtonPin = currentLeftButtonPin;
-        if(currentRightButtonPin)
+        previousLeftButton = currentLeftButton;
+        if(currentLeftButton)
         {
-          playerRightTime += playerRightInc;
+          playerRightTime = playerRightTime + playerRightInc;
           state = Cnt1;
         }
       }
@@ -155,22 +170,22 @@ void loop() {
       if(currentRotaryButton != previousRotaryButton)
       {
         previousRotaryButton = currentRotaryButton;
-        if(currentRotaryButton)
+        if(!currentRotaryButton)
         {
           previousState = Cnt2;
           state = Pause;
         }
 
       }
-
-    
+      diplayClock(playerLeftTime, playerRightTime);
       break;
+
     case GameDone:
       //display game done
       if(currentRotaryButton != previousRotaryButton)
       {
         previousRotaryButton = currentRotaryButton;
-        if(currentRotaryButton)
+        if(!currentRotaryButton)
         {
           playerLeftTime = playerLeftTimeInit;
           playerRightTime = playerRightTimeInit;
@@ -178,19 +193,55 @@ void loop() {
         }
       }
       break;
+
     case Pause:
+
+      //if falling edge is detected, get ready for new input
       if(currentRotaryButton != previousRotaryButton)
       {
-        previousRotaryButton = currentRotaryButton;
         if(currentRotaryButton)
         {
-          playerLeftTime = playerLeftTimeInit;
-          playerRightTime = playerRightTimeInit;
-          state = previousState;
+          pauseInput = 1;
         }
       }
-      //diplay paused time
+      //
+      if(pauseInput)
+      {
+        if(currentRotaryButton != previousRotaryButton)
+        {
+          previousRotaryButton = currentRotaryButton;
+          //restart game on falling edge of button, waiting for reset if necessary
+          if(currentRotaryButton)
+          {
+            state = previousState;
+            pauseInput = 0;
+            previousMillis = currentMillis;
+          }
+        }
+          //button is being held down
+          if(!currentRotaryButton)
+          {
+            resetCounter++;
+          }
+          //Button as been released
+          else
+          {
+            resetCounter = 0;
+            resetFlag = 0;
+          }
+        //if button is held down for long enough, reset the game
+        if(resetCounter > 500)
+        {
+          state = Ready;
+          playerLeftTime = playerLeftTimeInit;
+          playerRightTime = playerRightTimeInit;
+          resetCounter = 0;
+          pauseInput = 0;
+        }
+      }
+      diplayClock(playerLeftTime, playerRightTime);
       break;
+
     case SetTimeLeft:
       break;
     case SetTimeRight:
