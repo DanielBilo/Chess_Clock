@@ -19,6 +19,7 @@ extern MAX7219 max7219;
 void rotaryUpdate(void);
 void diplayClock(unsigned long timeLeft, unsigned long timeRight);
 bool debounce(int btn, uint16_t *state);
+bool debounce2(int btn, bool state);
 
 
 #endif

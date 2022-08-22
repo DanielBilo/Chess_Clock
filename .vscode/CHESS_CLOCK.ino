@@ -71,15 +71,14 @@ void loop() {
     intFlag = 0;
   }  
 
-  currentRotaryButton = debounce(rotaryButtonPin, &debounceStateRotaryButton);
-  // currentRotaryButton = digitalRead(rotaryButtonPin);
+  currentRotaryButton = debounce2(rotaryButtonPin, previousRotaryButton);
 
-  currentLeftButton = debounce(leftButtonPin, &debounceStateLeftButton);
-  currentRightButton = debounce(rightButtonPin, &debounceStateRightButton);
-  if(currentRotaryButton)
-  {
-    Serial.println("Rotary high");
-  }
+  currentLeftButton = debounce2(leftButtonPin, previousLeftButton);
+  currentRightButton = debounce2(rightButtonPin, previousRightButton);
+  // if(currentRotaryButton)
+  // {
+  //   Serial.println("Rotary high");
+  // }
   currentMillis = millis();
 
   switch(state)
@@ -197,18 +196,19 @@ void loop() {
     case Pause:
 
       //if falling edge is detected, get ready for new input
-      if(currentRotaryButton != previousRotaryButton)
+      if(currentRotaryButton != previousRotaryButton and pauseInput == 0)
       {
-        if(currentRotaryButton)
-        {
+        previousRotaryButton = currentRotaryButton;
+
           pauseInput = 1;
-        }
+        
       }
       //
       if(pauseInput)
       {
         if(currentRotaryButton != previousRotaryButton)
         {
+
           previousRotaryButton = currentRotaryButton;
           //restart game on falling edge of button, waiting for reset if necessary
           if(currentRotaryButton)
@@ -230,7 +230,7 @@ void loop() {
             resetFlag = 0;
           }
         //if button is held down for long enough, reset the game
-        if(resetCounter > 500)
+        if(resetCounter > 200)
         {
           state = Ready;
           playerLeftTime = playerLeftTimeInit;

@@ -13,7 +13,7 @@ void rotaryUpdate(void)
     intFlag = 1;
  }
 
- void diplayClock(unsigned long timeLeft, unsigned long timeRight)
+void diplayClock(unsigned long timeLeft, unsigned long timeRight)
  {  
     unsigned long hours = timeLeft / (60 * 60000);
     unsigned long minutes = ((timeLeft / 1000) - (3600 * hours)) / 60; 
@@ -79,5 +79,17 @@ void rotaryUpdate(void)
  bool debounce(int btn, uint16_t *state) {
   *state = (*state<<1) | digitalRead(btn) | 0xfe00;
   return (*state == 0xff00);
+}
+
+bool debounce2(int btn, bool state)
+{
+  bool stateNow = digitalRead(btn);
+  if(state!=stateNow)
+  {
+    delay(10);
+    stateNow = digitalRead(btn);
+  }
+  return stateNow;
+  
 }
 
