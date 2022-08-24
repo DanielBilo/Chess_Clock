@@ -17,14 +17,18 @@ bool currentLeftButton = 0;
 bool currentRightButton = 0;
 bool currentRotaryButton = 0;
 int encoderPosCount = 0;
-bool intFlag = 0;
 bool resetFlag = 0;
 bool pauseInput = 0;
+bool flashToggle = 0;
 int resetCounter = 0;
 uint16_t debounceStateRotaryButton = 0;
 uint16_t debounceStateLeftButton = 0;
 uint16_t debounceStateRightButton = 0;
-unsigned long currentMillis, previousMillis, playerLeftTime, playerRightTime, playerLeftInc, playerRightInc, playerLeftTimeInit, playerRightTimeInit;
+unsigned long currentMillis, previousMillis, playerLeftTime, playerRightTime, playerLeftInc, 
+              playerRightInc, playerLeftTimeInit, playerRightTimeInit, previousBlinkMillis,
+              settingEncoderULong;
+
+long settingEncoderLong;
 
 
 
@@ -50,10 +54,11 @@ void setup() {
   previousRotaryButton = digitalRead(rotaryButtonPin);
   currentMillis = millis();
   previousMillis = currentMillis;
+  previousBlinkMillis = currentMillis;
   previousLeftButton = digitalRead(leftButtonPin);
   previousRightButton = digitalRead(rightButtonPin);
-  playerLeftTimeInit = 50 * 60000;              // temps de départ
-  playerRightTimeInit = 50 * 60000;             // temps de départ
+  playerLeftTimeInit = 2 * 60000;              // temps de départ
+  playerRightTimeInit = 2 * 60000;             // temps de départ
   playerLeftTime = playerLeftTimeInit;
   playerRightTime = playerRightTimeInit;
   playerLeftInc = 10000;                    //incrément initial
@@ -65,29 +70,18 @@ void setup() {
 
 void loop() {
 
-  if(intFlag)
-  {
-    Serial.println(encoderPosCount);
-    intFlag = 0;
-  }  
-
+  //update all inputs
   currentRotaryButton = debounce2(rotaryButtonPin, previousRotaryButton);
-
   currentLeftButton = debounce2(leftButtonPin, previousLeftButton);
   currentRightButton = debounce2(rightButtonPin, previousRightButton);
-  // if(currentRotaryButton)
-  // {
-  //   Serial.println("Rotary high");
-  // }
   currentMillis = millis();
 
   switch(state)
   {
     case Ready:
-      if(intFlag)
+      if(encoderPosCount)
       {
         encoderPosCount = 0;
-        intFlag = 0;
       }
       if(previousLeftButton != currentLeftButton)
       {
@@ -96,8 +90,6 @@ void loop() {
         {
           previousMillis = currentMillis;
           state = Cnt1;
-          playerLeftTime = playerLeftTimeInit;
-          playerRightTime = playerRightTimeInit;
         }
       }
       if(previousRightButton != currentRightButton)
@@ -106,51 +98,74 @@ void loop() {
         if(currentRightButton)
         {
           previousMillis = currentMillis;
-          playerLeftTime = playerLeftTimeInit;
-          playerRightTime = playerRightTimeInit;
           state = Cnt2;
         }
       }
-      diplayClock(playerLeftTime, playerRightTime);
-      break;
 
-    case Cnt1:
-      //Décrémentation du temps
-      playerLeftTime = playerLeftTime -  (currentMillis - previousMillis);
-      previousMillis = currentMillis;
-      //détection de fin de tour
-      if(previousRightButton != currentRightButton)
-      previousRightButton = currentRightButton;
-      {
-        if(currentRightButton)
-        {
-          playerLeftTime = playerLeftTime +  playerLeftInc;
-          state = Cnt2;
-        }
-      }
-      //Fin de la partie, manque de temps
-      if (!playerLeftTime)
-      {
-        state = GameDone;
-      }
-      //Mise sur pause
       if(currentRotaryButton != previousRotaryButton)
       {
         previousRotaryButton = currentRotaryButton;
-        if(!currentRotaryButton)
+        if(!currentRotaryButton) //rising edge
+        {
+          state = SetTimeLeft;
+        }
+      }
+      displayClock(playerLeftTime, playerRightTime);
+      break;
+
+    case Cnt1:
+      //Decrementing time
+      if(playerLeftTime < (currentMillis - previousMillis))
+      {
+        playerLeftTime = 0;
+      }
+      else
+      {
+        playerLeftTime = playerLeftTime -  (currentMillis - previousMillis);
+      }
+      previousMillis = currentMillis;
+
+      //End of turn detection
+      if(previousRightButton != currentRightButton)
+      previousRightButton = currentRightButton;
+      {
+        if(currentRightButton) //Rising edge
+        {
+          playerLeftTime = playerLeftTime + playerLeftInc;
+          state = Cnt2;
+        }
+      }
+      //Put on pause
+      if(currentRotaryButton != previousRotaryButton)
+      {
+        previousRotaryButton = currentRotaryButton;
+        if(!currentRotaryButton) //Rising edge
         {
           previousState = Cnt1;
           state = Pause;
         }
       }
-      diplayClock(playerLeftTime, playerRightTime);
+      if(playerLeftTime <= 0)
+      {
+        playerLeftTime = 0;
+        state = GameDone;
+      }
+      displayClock(playerLeftTime, playerRightTime);
       break;
 
     case Cnt2:
-      //Décrémentation du temps
-      playerRightTime = playerRightTime - (currentMillis - previousMillis);
+      //Decrementing time
+      if(playerRightTime < (currentMillis - previousMillis))
+      {
+        playerRightTime = 0;
+      }
+      else
+      {
+        playerRightTime = playerRightTime -  (currentMillis - previousMillis);
+      }
       previousMillis = currentMillis;
-      //détection de fin de tour
+
+      //End of turn detection
       if(previousLeftButton != currentLeftButton)
       {
         previousLeftButton = currentLeftButton;
@@ -160,12 +175,7 @@ void loop() {
           state = Cnt1;
         }
       }
-      //Fin de la partie, manque de temps
-      if (!playerRightTime)
-      {
-        state = GameDone;
-      }
-      //Mise sur pause
+      //Put on pause
       if(currentRotaryButton != previousRotaryButton)
       {
         previousRotaryButton = currentRotaryButton;
@@ -174,23 +184,27 @@ void loop() {
           previousState = Cnt2;
           state = Pause;
         }
-
       }
-      diplayClock(playerLeftTime, playerRightTime);
+      if(playerRightTime <= 0)
+      {
+        playerRightTime = 0;
+        state = GameDone;
+      }
+      displayClock(playerLeftTime, playerRightTime);
       break;
 
     case GameDone:
-      //display game done
       if(currentRotaryButton != previousRotaryButton)
       {
         previousRotaryButton = currentRotaryButton;
-        if(!currentRotaryButton)
+        if(currentRotaryButton) //Falling edge
         {
           playerLeftTime = playerLeftTimeInit;
           playerRightTime = playerRightTimeInit;
           state = Ready;
         }
       }
+      displayClock(playerLeftTime, playerRightTime);
       break;
 
     case Pause:
@@ -239,19 +253,198 @@ void loop() {
           pauseInput = 0;
         }
       }
-      diplayClock(playerLeftTime, playerRightTime);
+      displayClock(playerLeftTime, playerRightTime);
       break;
 
     case SetTimeLeft:
+      if(encoderPosCount)
+      {
+        settingEncoderLong = encoderPosCount * 60000;
+        if(settingEncoderLong < 0)
+        {
+          settingEncoderULong = -settingEncoderLong;
+          if(playerLeftTimeInit <= settingEncoderULong)
+          {
+            playerLeftTimeInit = 60000;
+          }
+          else
+          {
+            playerLeftTimeInit = (playerLeftTimeInit + (encoderPosCount * 60000));
+          }
+        }
+        else
+        {
+          playerLeftTimeInit = (playerLeftTimeInit + (encoderPosCount * 60000));
+        }
+        encoderPosCount = 0;
+      }
+
+      if(currentRotaryButton != previousRotaryButton)
+      {
+        previousRotaryButton = currentRotaryButton;
+        if(!currentRotaryButton) //rising edge
+        {
+          state = SetTimeRight;
+        }
+      }
+
+      if(flashToggle)
+      {
+        displayClockHFormat(playerLeftTimeInit, playerRightTimeInit);
+      }
+      else
+      {
+        int i;
+        for(i = 4; i < 8; i++)
+        {
+          max7219.DisplayChar(i, ' ', 0);
+        }
+      }
       break;
+
     case SetTimeRight:
+      if(encoderPosCount)
+      {
+        settingEncoderLong = encoderPosCount * 60000;
+        if(settingEncoderLong < 0)
+        {
+          settingEncoderULong = -settingEncoderLong;
+          if(playerRightTimeInit <= settingEncoderULong)
+          {
+            playerRightTimeInit = 60000;
+          }
+          else
+          {
+            playerRightTimeInit = (playerRightTimeInit + (encoderPosCount * 60000));
+          }
+        }
+        else
+        {
+          playerRightTimeInit = (playerRightTimeInit + (encoderPosCount * 60000));
+        }
+        encoderPosCount = 0;
+      }
+      if(currentRotaryButton != previousRotaryButton)
+      {
+        previousRotaryButton = currentRotaryButton;
+        if(!currentRotaryButton) //rising edge
+        {
+          state = SetIncLeft;
+        }
+      }
+
+      if(flashToggle)
+      {
+        displayClockHFormat(playerLeftTimeInit, playerRightTimeInit);
+      }
+      else
+      {
+        int i;
+        for(i = 0; i < 4; i++)
+        {
+          max7219.DisplayChar(i, ' ', 0);
+        }
+      }
       break;
     case SetIncLeft:
+      if(encoderPosCount)
+      {
+        settingEncoderLong = encoderPosCount * 1000;
+        if(settingEncoderLong < 0)
+        {
+          settingEncoderULong = -settingEncoderLong;
+          if(playerLeftInc < settingEncoderULong)
+          {
+            playerLeftInc = 0;
+          }
+          else
+          {
+            playerLeftInc = (playerLeftInc + (encoderPosCount * 1000));
+          }
+        }
+        else
+        {
+          playerLeftInc = (playerLeftInc + (encoderPosCount * 1000));
+        }
+        encoderPosCount = 0;
+      }
+
+      if(flashToggle)
+      {
+        displayClock(playerLeftInc, playerRightInc);
+      }
+      else
+      {
+        int i;
+        for(i = 4; i < 8; i++)
+        {
+          max7219.DisplayChar(i, ' ', 0);
+        }
+      }
+
+      if(currentRotaryButton != previousRotaryButton)
+      {
+        previousRotaryButton = currentRotaryButton;
+        if(!currentRotaryButton) //rising edge
+        {
+          state = SetIncRight;
+        }
+      }
       break;
+
     case SetIncRight:
-      break;
-  }
+      if(encoderPosCount)
+      {
+        settingEncoderLong = encoderPosCount * 1000;
+        if(settingEncoderLong < 0)
+        {
+          settingEncoderULong = -settingEncoderLong;
+          if(playerRightInc < settingEncoderULong)
+          {
+            playerRightInc = 0;
+          }
+          else
+          {
+            playerRightInc = (playerRightInc + (encoderPosCount * 1000));
+          }
+        }
+        else
+        {
+          playerRightInc = (playerRightInc + (encoderPosCount * 1000));
+        }
+        encoderPosCount = 0;
+      }
       
 
+      if(flashToggle)
+      {
+        displayClock(playerLeftInc, playerRightInc);
+      }
+      else
+      {
+        int i;
+        for(i = 0; i < 4; i++)
+        {
+          max7219.DisplayChar(i, ' ', 0);
+        }
+      }
+
+      if(currentRotaryButton != previousRotaryButton)
+      {
+        previousRotaryButton = currentRotaryButton;
+        if(!currentRotaryButton) //rising edge
+        {
+          playerLeftTime = playerLeftTimeInit;
+          playerRightTime = playerRightTimeInit;
+          state = Ready;
+        }
+      }
+      break;
+  }
+  if((currentMillis - previousBlinkMillis) > 300)
+  {
+    previousBlinkMillis = currentMillis;
+    flashToggle = !flashToggle;
+  }
 }
 
