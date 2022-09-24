@@ -38,12 +38,11 @@ unsigned char state, previousState;
 MAX7219 max7219;
 
 void setup() {
-  Serial.begin(9600);
   max7219.Begin();
   max7219.MAX7219_SetBrightness(displayBrightness);
 
-  pinMode(leftButtonPin, INPUT);
-  pinMode(rightButtonPin, INPUT);
+  pinMode(leftButtonPin, INPUT_PULLUP);
+  pinMode(rightButtonPin, INPUT_PULLUP);
   pinMode(rotaryCLKPin, INPUT);
   pinMode(rotaryBPin, INPUT);
   pinMode(rotaryButtonPin, INPUT);
@@ -72,8 +71,8 @@ void loop() {
 
   //update all inputs
   currentRotaryButton = debounce2(rotaryButtonPin, previousRotaryButton);
-  currentLeftButton = debounce2(leftButtonPin, previousLeftButton);
-  currentRightButton = debounce2(rightButtonPin, previousRightButton);
+  currentLeftButton = !(debounce2(leftButtonPin, previousLeftButton));
+  currentRightButton = !(debounce2(rightButtonPin, previousRightButton));
   currentMillis = millis();
 
   switch(state)
@@ -81,7 +80,31 @@ void loop() {
     case Ready:
       if(encoderPosCount)
       {
+        if(encoderPosCount < 0)
+        {
+          int temp = displayBrightness - '0';
+          if((temp + encoderPosCount) <= -48) //0 in char format
+          {
+            displayBrightness = 0;
+          }
+          else
+          {
+            displayBrightness = displayBrightness + encoderPosCount;
+          }
+        }        else
+        {
+          if((displayBrightness + encoderPosCount) >= 0xF)
+          {
+            displayBrightness = 0xF;
+          }
+          else
+          {
+            displayBrightness += encoderPosCount;
+          }
+        }
         encoderPosCount = 0;
+        max7219.MAX7219_SetBrightness(displayBrightness);
+
       }
       if(previousLeftButton != currentLeftButton)
       {
@@ -263,18 +286,18 @@ void loop() {
         if(settingEncoderLong < 0)
         {
           settingEncoderULong = -settingEncoderLong;
-          if(playerLeftTimeInit <= settingEncoderULong)
+          if(playerRightTimeInit <= settingEncoderULong)
           {
-            playerLeftTimeInit = 60000;
+            playerRightTimeInit = 60000;
           }
           else
           {
-            playerLeftTimeInit = (playerLeftTimeInit + (encoderPosCount * 60000));
+            playerRightTimeInit = (playerRightTimeInit + (encoderPosCount * 60000));
           }
         }
         else
         {
-          playerLeftTimeInit = (playerLeftTimeInit + (encoderPosCount * 60000));
+          playerRightTimeInit = (playerRightTimeInit + (encoderPosCount * 60000));
         }
         encoderPosCount = 0;
       }
@@ -309,18 +332,18 @@ void loop() {
         if(settingEncoderLong < 0)
         {
           settingEncoderULong = -settingEncoderLong;
-          if(playerRightTimeInit <= settingEncoderULong)
+          if(playerLeftTimeInit <= settingEncoderULong)
           {
-            playerRightTimeInit = 60000;
+            playerLeftTimeInit = 60000;
           }
           else
           {
-            playerRightTimeInit = (playerRightTimeInit + (encoderPosCount * 60000));
+            playerLeftTimeInit = (playerLeftTimeInit + (encoderPosCount * 60000));
           }
         }
         else
         {
-          playerRightTimeInit = (playerRightTimeInit + (encoderPosCount * 60000));
+          playerLeftTimeInit = (playerLeftTimeInit + (encoderPosCount * 60000));
         }
         encoderPosCount = 0;
       }
@@ -353,18 +376,18 @@ void loop() {
         if(settingEncoderLong < 0)
         {
           settingEncoderULong = -settingEncoderLong;
-          if(playerLeftInc < settingEncoderULong)
+          if(playerRightInc < settingEncoderULong)
           {
-            playerLeftInc = 0;
+            playerRightInc = 0;
           }
           else
           {
-            playerLeftInc = (playerLeftInc + (encoderPosCount * 1000));
+            playerRightInc = (playerRightInc + (encoderPosCount * 1000));
           }
         }
         else
         {
-          playerLeftInc = (playerLeftInc + (encoderPosCount * 1000));
+          playerRightInc = (playerRightInc + (encoderPosCount * 1000));
         }
         encoderPosCount = 0;
       }
@@ -399,18 +422,18 @@ void loop() {
         if(settingEncoderLong < 0)
         {
           settingEncoderULong = -settingEncoderLong;
-          if(playerRightInc < settingEncoderULong)
+          if(playerLeftInc < settingEncoderULong)
           {
-            playerRightInc = 0;
+            playerLeftInc = 0;
           }
           else
           {
-            playerRightInc = (playerRightInc + (encoderPosCount * 1000));
+            playerLeftInc = (playerLeftInc + (encoderPosCount * 1000));
           }
         }
         else
         {
-          playerRightInc = (playerRightInc + (encoderPosCount * 1000));
+          playerLeftInc = (playerRightInc + (encoderPosCount * 1000));
         }
         encoderPosCount = 0;
       }
